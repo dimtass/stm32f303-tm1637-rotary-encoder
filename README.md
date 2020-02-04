@@ -42,7 +42,7 @@ can swap those in order to control the clockwise increment/decrement.
 The following table shows the connections for the current code.
 
 STM32F303 | KY-040 | TM1637
-- | - | -
+-|-|-
 PB0 | - | CLK
 PB1 | - | DT
 PB9 | CLK | -
