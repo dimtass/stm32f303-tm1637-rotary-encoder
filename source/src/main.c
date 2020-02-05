@@ -13,13 +13,23 @@
 #include "cortexm_delay.h"
 #include "rotary_enc_pot.h"
 
+// #define TEST1    // Toggle debug pin only when read the REA and REB in IRQ
+// #define TEST2    // Toggle debug pin during the whole LED update
+
+#if defined(TEST1) && defined(TEST2)
+#error "Cannot define both TEST1 and TEST2"
+#endif
+
 #define LED_TIMER_MS 500
 #define LED_PORT GPIOC
 #define LED_PIN GPIO_Pin_13
 
-#define ROT_ENC_PORT	GPIOB
+#define ROT_ENC_PORT	GPIOB	// Do not change
 #define ROT_ENC_PINA	GPIO_Pin_0
 #define ROT_ENC_PINB	GPIO_Pin_1
+
+#define DBG_PIN_PORT	GPIOB	// Do not change
+#define DBG_PIN			GPIO_Pin_10
 
 struct tp_pot_values {
 	uint8_t a;
@@ -82,6 +92,19 @@ void led_init(void *data)
 	TRACE(("init\n"));
 }
 
+void debug_pin_init(void)
+{
+	GPIO_InitTypeDef   GPIO_InitStructure;
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB, ENABLE);
+	/* Configure Button pin as output */
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_InitStructure.GPIO_Pin = DBG_PIN;
+	GPIO_Init(DBG_PIN_PORT, &GPIO_InitStructure);
+}
+
 void rotary_encoder_init()
 {	
 	EXTI_InitTypeDef   EXTI_InitStructure;
@@ -132,9 +155,15 @@ void EXTI1_IRQHandler(void)
 			This flag will block faster updates than the display handling.
 		*/
 		if (!read_pot) {
+        	#if defined(TEST1) || defined(TEST2)
+			DBG_PIN_PORT->ODR |= DBG_PIN;
+			#endif
 			read_pot = 1;
 			pot_values.a = (uint8_t)(ROT_ENC_PORT->IDR & ROT_ENC_PINA);
 			pot_values.b = (uint8_t)(ROT_ENC_PORT->IDR & ROT_ENC_PINB);
+			#if defined(TEST1)
+			DBG_PIN_PORT->ODR &= ~DBG_PIN;
+			#endif
 		}
 		/* Clear the EXTI line 6 pending bit */
 		EXTI_ClearITPendingBit(EXTI_Line1);
@@ -179,6 +208,9 @@ int main(void)
 	dev_led_add(&def_led);
 	dev_led_set_pattern(&def_led, 0b11001100);
 
+	/* Inititalize debug pin */
+	debug_pin_init();
+
 	/* Configure TM1637 */
 	DECLARE_TM1637(tm1637, GPIOB, GPIO_Pin_9, GPIOB, GPIO_Pin_8, 80);
 	tm1637_init(&tm1637);
@@ -198,6 +230,9 @@ int main(void)
 			/* First process the display and then clear the flag */
 			rep_set_update_values(&pot1, pot_values.a, pot_values.b);
 			read_pot = 0;
+			#if defined(TEST2)
+			DBG_PIN_PORT->ODR &= ~DBG_PIN;
+			#endif
 		}
 	}
 }
